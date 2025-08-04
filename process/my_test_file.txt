@@ -1,0 +1,40 @@
+Cha ghi lan 1: parent is writing
+
+Cha ghi lan 2: parent is writing
+
+Cha ghi lan 3: parent is writing
+
+Cha ghi lan 4: parent is writing
+
+Cha ghi lan 5: parent is writing
+
+Con ghi lan 1: child is writing
+
+Con ghi lan 2: child is writing
+
+Con ghi lan 3: child is writing
+
+Con ghi lan 4: child is writing
+
+Con ghi lan 5: child is writing
+
+Cha (PID 47596) ghi lan 1: parent is writing
+
+Cha (PID 47596) ghi lan 2: parent is writing
+
+Cha (PID 47596) ghi lan 3: parent is writing
+
+Cha (PID 47596) ghi lan 4: parent is writing
+
+Cha (PID 47596) ghi lan 5: parent is writing
+
+Con (PID 47597) ghi lan 1: child is writing
+
+Con (PID 47597) ghi lan 2: child is writing
+
+Con (PID 47597) ghi lan 3: child is writing
+
+Con (PID 47597) ghi lan 4: child is writing
+
+Con (PID 47597) ghi lan 5: child is writing
+
