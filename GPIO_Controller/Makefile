@@ -1,14 +1,7 @@
-PWD := $(shell pwd)
-
-src-file = ./my_gpio.c
 obj-m += my_gpio.o
 
-CROSS := /data/trido/toolchain/gcc-linaro-7.3.1-2018.05-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-
-KERNEL := /data/trido/linux/
-
 all:
-	make ARCH=arm CROSS_COMPILE=$(CROSS) -C $(KERNEL) SUBDIRS=$(PWD) modules
+	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+
 clean:
-	make -C $(KERNEL) SUBDIRS=$(PWD) clean
-check:
-	./checkpatch.pl --no-tree --ignore CONST_STRUCT --show-types -f $(src-file)
+	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean

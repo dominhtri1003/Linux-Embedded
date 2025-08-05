@@ -11,6 +11,8 @@
 #include <linux/pm_runtime.h>
 #include <linux/pm.h>
 #include <linux/bitops.h>
+#include <linux/pinctrl/pinctrl.h>
+#include <linux/pinctrl/consumer.h>
 
 #define GPIO_REVISION			0x00
 #define GPIO_SYSCONFIG			0x10
@@ -116,7 +118,7 @@ int __get_direction(struct my_gpio_bank *bank, int pin)
     void __iomem *base = bank->base;
 
     if(bank->regs->oe)
-        temp_reg = ioread(base + bank->regs->eo);
+        temp_reg = ioread32(base + bank->regs->oe);
     else
         pr_err("Register not exit\n");
     
@@ -128,15 +130,19 @@ int __get_direction(struct my_gpio_bank *bank, int pin)
         return OUT;
 }
 
-int __set_direction(struct my_gpio_bank *bank, int pin, char is_input)
+void __set_direction(struct my_gpio_bank *bank, int pin, char is_input)
 {
     void __iomem *base = bank->base;
-    int temp_reg = ioread32(base + bank->regs->oe)
+    int temp_reg = ioread32(base + bank->regs->oe);
 
     if(is_input)
+    {
         temp_reg |= (1 << pin);
+    }
     else
-        remp_reg &= ~(1 << pin);
+    {
+        temp_reg &= ~(1 << pin);
+    }
 
     iowrite32(temp_reg, base + bank->regs->oe);
 }
@@ -264,7 +270,7 @@ void my_gpio_free(struct gpio_chip *chip, unsigned int pin)
 {
     struct my_gpio_bank *bank = to_my_gpio_bank(chip);
 
-    pinctrl_free_gpio(chip->base + pin);
+    pinctrl_gpio_free(chip->base + pin);
     bank->pins &= ~(1 << pin);
 
     if(!(bank->pins))
@@ -331,7 +337,7 @@ int my_gpio_get(struct gpio_chip *chip, unsigned int pin)
     return ret;
 }
 
-int my_gpio_set(struct gpio_chip *chip, unsigned int pin, int value)
+void my_gpio_set(struct gpio_chip *chip, unsigned int pin, int value)
 {
     struct my_gpio_bank *bank = to_my_gpio_bank(chip);
 
@@ -374,9 +380,10 @@ static unsigned int my_irq_startup(struct irq_data *d)
     unsigned int offset = d->hwirq;
 
     __my_enable_irq(bank, offset);
+    return 0;
 }
 
-static unsigned int my_irq_shutdown(struct irq_data *d)
+static void my_irq_shutdown(struct irq_data *d)
 {
     struct gpio_chip *chip = irq_data_get_irq_chip_data(d);
     struct my_gpio_bank *bank = gpiochip_get_data(chip);
@@ -474,7 +481,7 @@ static int init_gpio_chip(struct platform_device *pdev, struct irq_chip *irqc)
     int ret = 0;
     int irq_base = 0;
     struct resource *res;
-    struct deviece *dev = &pdev->dev;
+    struct device *dev = &pdev->dev;
     struct my_gpio_bank *bank = platform_get_drvdata(pdev);
 
     if (bank == NULL)
@@ -502,7 +509,6 @@ static int init_gpio_chip(struct platform_device *pdev, struct irq_chip *irqc)
 
     bank->chip.parent = dev;
     bank->chip.owner = THIS_MODULE;
-    bank->chip.of_node = dev->of_node;
 	bank->chip.base = gpio;
 	bank->chip.ngpio = BANK_WIDTH;
 	bank->chip.label = "gpio";
@@ -527,10 +533,23 @@ static int init_gpio_chip(struct platform_device *pdev, struct irq_chip *irqc)
     }
 
     /* auto register chip->to_irq_api */
-    ret = gpiochip_irqchip_add(&bank->chip, irqc, irq_base, handle_bad_irq, IRQ_TYPE_NONE);
+    struct irq_domain *domain;
+    domain = irq_domain_add_linear(bank->chip.parent->of_node,
+                                    bank->chip.ngpio,
+                                    &irq_domain_simple_ops,
+                                    NULL);
+    if(!domain)
+    {
+        dev_err(bank->chip.parent, "Failed to create IRQ domain\n");
+        gpiochip_remove(&bank->chip);
+        return -ENOMEM;
+    }
+
+    ret = gpiochip_irqchip_add_domain(&bank->chip, irqc, irq_base, handle_bad_irq, IRQ_TYPE_NONE);
     if(ret)
     {
         dev_err(bank->chip.parent, "Couldn't add irqchip to gpiochip\n");
+        irq_domain_remove(domain);
 		gpiochip_remove(&bank->chip);
 		return -ENODEV;
     }
@@ -575,7 +594,7 @@ static int my_gpio_probe(struct platform_device *pdev)
     irqc->irq_startup = my_irq_startup;
     irqc->irq_shutdown = my_irq_shutdown;
     irqc->irq_ack = my_ack_irq;
-    irqc->irq_mask = my_irq_mask;
+    irqc->irq_mask = my_mask_irq;
     irqc->irq_unmask = my_unmask_irq,
 	irqc->irq_set_type = my_irq_type,
 	irqc->irq_set_wake = my_gpio_wake_enable,
@@ -606,13 +625,13 @@ static int my_gpio_probe(struct platform_device *pdev)
     return 0;
 }
 
-static int my_gpio_remove(struct platform_device *pdev)
+static void my_gpio_remove(struct platform_device *pdev)
 {
     pr_info("TriDo %s %d\n", __func__, __LINE__);
     struct my_gpio_bank *bank = platform_get_drvdata(pdev);
     gpiochip_remove(&bank->chip);
     pm_runtime_disable(&pdev->dev);
-    return 0;
+    return;
 }
 
 struct omap_gpio_reg_offs regs_offset = {
@@ -632,7 +651,7 @@ struct omap_gpio_reg_offs regs_offset = {
 	.sysstatus = GPIO_SYSSTATUS,
 	.ctrl = GPIO_CTRL,
 	.oe = GPIO_OE,
-	.datatin = GPIO_DATAIN,
+	.datain = GPIO_DATAIN,
 	.dataout = GPIO_DATAOUT,
 	.leveldetect0 = GPIO_LEVELDETECT0,
 	.leveldetect1 = GPIO_LEVELDETECT1,
@@ -646,18 +665,18 @@ struct omap_gpio_reg_offs regs_offset = {
 
 static const struct of_device_id my_of_match[] ={
     {
-        .compatible"trido,omap4-gpio",
+        .compatible = "trido,omap4-gpio",
         .data = &regs_offset,
     },
     {},
 };
 
-MODULE_DEVICE_TABLE(0f, my_of_match);
+MODULE_DEVICE_TABLE(of, my_of_match);
 
 static struct platform_driver my_platform_driver = {
     .probe = my_gpio_probe,
     .remove = my_gpio_remove,
-    .drive = {
+    .driver = {
         .name = "my_bbb_gpio",
         .owner = THIS_MODULE,
         .of_match_table = my_of_match,
