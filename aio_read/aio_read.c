@@ -11,6 +11,7 @@ const int SIZE_TO_READ = 100;
 
 int main()
 {
+	// Khai báo con trỏ file kiểu int
 	int file = open("test_aio.txt", O_RDONLY, 0);
 
 	if(file == -1)

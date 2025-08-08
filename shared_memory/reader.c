@@ -19,5 +19,5 @@ void main()
     ptr = mmap(0, 4096, PROT_READ, MAP_SHARED, shm_fd, 0);
     printf("Reading from shared memory: %s\n", (char *)ptr);
      // Unlink the shared memory object
-    shm_unlink("Hello");
+    shm_unlink("Hello"); 
 }

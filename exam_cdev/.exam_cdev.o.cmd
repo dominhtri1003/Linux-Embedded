@@ -605,14 +605,10 @@ deps_exam_cdev.o := \
     $(wildcard include/config/DEBUG_KMAP_LOCAL) \
   /usr/src/linux-headers-6.14.0-27-generic/include/linux/sched/ext.h \
     $(wildcard include/config/EXT_GROUP_SCHED) \
-  /usr/src/linux-headers-6.14.0-27-generic/include/linux/rhashtable-types.h \
-  /usr/src/linux-headers-6.14.0-27-generic/include/linux/mutex.h \
-  /usr/src/linux-headers-6.14.0-27-generic/include/linux/lockdep.h \
-    $(wildcard include/config/DEBUG_LOCKING_API_SELFTESTS) \
-  /usr/src/linux-headers-6.14.0-27-generic/include/linux/debug_locks.h \
-  /usr/src/linux-headers-6.14.0-27-generic/include/linux/workqueue_types.h \
   /usr/src/linux-headers-6.14.0-27-generic/include/linux/spinlock.h \
   /usr/src/linux-headers-6.14.0-27-generic/include/linux/bottom_half.h \
+  /usr/src/linux-headers-6.14.0-27-generic/include/linux/lockdep.h \
+    $(wildcard include/config/DEBUG_LOCKING_API_SELFTESTS) \
   /usr/src/linux-headers-6.14.0-27-generic/arch/x86/include/generated/asm/mmiowb.h \
   /usr/src/linux-headers-6.14.0-27-generic/include/asm-generic/mmiowb.h \
     $(wildcard include/config/MMIOWB) \
@@ -691,6 +687,8 @@ deps_exam_cdev.o := \
   /usr/src/linux-headers-6.14.0-27-generic/include/linux/list_nulls.h \
   /usr/src/linux-headers-6.14.0-27-generic/include/linux/wait.h \
   /usr/src/linux-headers-6.14.0-27-generic/include/linux/seqlock.h \
+  /usr/src/linux-headers-6.14.0-27-generic/include/linux/mutex.h \
+  /usr/src/linux-headers-6.14.0-27-generic/include/linux/debug_locks.h \
   /usr/src/linux-headers-6.14.0-27-generic/include/linux/nodemask.h \
   /usr/src/linux-headers-6.14.0-27-generic/include/linux/random.h \
     $(wildcard include/config/VMGENID) \
@@ -768,6 +766,7 @@ deps_exam_cdev.o := \
     $(wildcard include/config/DEBUG_OBJECTS_WORK) \
     $(wildcard include/config/FREEZER) \
     $(wildcard include/config/WQ_WATCHDOG) \
+  /usr/src/linux-headers-6.14.0-27-generic/include/linux/workqueue_types.h \
   /usr/src/linux-headers-6.14.0-27-generic/include/linux/rcu_segcblist.h \
   /usr/src/linux-headers-6.14.0-27-generic/include/linux/srcutree.h \
   /usr/src/linux-headers-6.14.0-27-generic/include/linux/rcu_node_tree.h \
@@ -824,6 +823,7 @@ deps_exam_cdev.o := \
   /usr/src/linux-headers-6.14.0-27-generic/include/linux/sem.h \
   /usr/src/linux-headers-6.14.0-27-generic/include/uapi/linux/sem.h \
   /usr/src/linux-headers-6.14.0-27-generic/include/linux/ipc.h \
+  /usr/src/linux-headers-6.14.0-27-generic/include/linux/rhashtable-types.h \
   /usr/src/linux-headers-6.14.0-27-generic/include/uapi/linux/ipc.h \
   /usr/src/linux-headers-6.14.0-27-generic/arch/x86/include/generated/uapi/asm/ipcbuf.h \
   /usr/src/linux-headers-6.14.0-27-generic/include/uapi/asm-generic/ipcbuf.h \

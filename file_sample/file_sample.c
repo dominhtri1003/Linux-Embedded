@@ -9,6 +9,8 @@ void main()
 {
 	int fd;
 	int fd1;
+	// Khai báo con trỏ file kiểu int
+	// khởi tạo giá trị cho con trỏ file = hàm open, thuộc tính file
 	fd = open("mytext1", O_CREAT | O_WRONLY);
 	fd1 = open("mytext2", O_CREAT | O_WRONLY);
 	printf("fd1 = %d, fd2 = %d/n", fd,fd1);

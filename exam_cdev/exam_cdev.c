@@ -1,145 +1,154 @@
-#include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/fs.h>
 #include <linux/cdev.h>
-#include <linux/device.h>
-#include <linux/delay.h>
-#include <linux/io.h>
-#include <linux/reboot.h>
-#include <linux/delay.h>
+#include <linux/slab.h>
 #include <linux/uaccess.h>
-#include <linux/string.h>
+#include <linux/io.h>
 
-// Example of character device driver
 
-#define MAGIC_NO        100
-#define SET_SHUT_CMD    _IOW(MAGIC_NO, 0, char*)
-#define SET_SHUT_TIME   _IOW(MAGIC_NO, 1, int)
+#define DEVICE		5
+#define AUTHOR		"Minh Tri Do"
+#define DESC		"A example character device driver"
+#define DEVICE_NAME     "led_30"
 
-MODULE_AUTHOR("Minh Tri Do");
-MODULE_LICENSE("GPL");
-MODULE_VERSION("1");
+#define MAGIC_NO	100
+#define SEND_DATA_CMD	_IOW(MAGIC_NO, 1, char*)
+#define IOCTL_DATA_LEN 1024
 
-static dev_t dev;
-static struct class *class_name;
-static struct device *device_name;
-static struct cdev my_cdev;
+#define GPIO_ADDR_BASE  0x44E07000
+#define ADDR_SIZE       (0x1000)
+#define GPIO_SETDATAOUT_OFFSET          0x194
+#define GPIO_CLEARDATAOUT_OFFSET        0x190
+#define DATA_IN_REG						0x138
+#define GPIO_OE_OFFSET                  0x134
+#define LED                             ~(1 << 30)
+#define DATA_OUT			(1 << 30)
 
-static int dev_open(struct inode *, struct file *);
-static int dev_close(struct inode *, struct file *);
-static ssize_t dev_read(struct file *filep, char __user *buf, size_t len, loff_t *offset);
-static ssize_t dev_write(struct file *filep, const char __user *buf, size_t len, loff_t *offset);
-//static long dev_ioctl(struct file *filep, unsigned int cmd, unsigned long arg);
+static dev_t dev_num;
+struct class *my_class;
+struct device *my_dev;
+struct cdev my_cdev;
+char data[4096];
+bool first_oper;
+char config_data[IOCTL_DATA_LEN];
+
+void __iomem *base_addr;
+uint32_t reg_data;
+uint32_t old_pin_mode;
+
+static int my_open(struct inode *inode, struct file *file)
+{
+	printk(KERN_INFO "TriDo %s, %d\n", __func__, __LINE__);
+	reg_data = readl_relaxed(base_addr + GPIO_OE_OFFSET);
+	old_pin_mode = reg_data;
+	reg_data &= LED;
+	writel_relaxed(reg_data, base_addr + GPIO_OE_OFFSET);
+	first_oper = true;
+
+	return 0;
+}
+
+static int my_close(struct inode *inode, struct file *file)
+{
+	printk(KERN_INFO "TriDo %s, %d\n", __func__, __LINE__);
+	reg_data = old_pin_mode;
+	writel_relaxed(reg_data, base_addr + GPIO_OE_OFFSET);
+	return 0;
+}
+
+static ssize_t my_read(struct file *flip, char __user *user_buf, size_t len, loff_t *offs)
+{
+	char *data = NULL;
+	printk(KERN_INFO "TriDo %s, %d\n", __func__, __LINE__);
+	
+	data = kmalloc(len, GFP_KERNEL);
+	memset(data, 0, len);
+	reg_data = readl_relaxed(base_addr + DATA_IN_REG);
+	data[0] = ((reg_data & LED) >> 30) + 48;
+	copy_to_user(user_buf, data, len);
+
+	if (true == first_oper) {
+		first_oper = false;
+		return 1;
+	}
+	else
+		return 0;
+}
+
+static ssize_t my_write(struct file *flip, const char __user *user_buf, size_t len, loff_t *offs)
+{
+	char data = '\0';
+	printk(KERN_INFO "TriDo %s, %d\n", __func__, __LINE__);
+	
+	copy_from_user(&data, &user_buf[0], sizeof(data));
+	switch (data) {
+		case '1':
+			writel_relaxed(DATA_OUT,  base_addr + GPIO_SETDATAOUT_OFFSET);
+			break;
+		case '0':
+			writel_relaxed(DATA_OUT, base_addr + GPIO_CLEARDATAOUT_OFFSET);
+			break;
+		default:
+			printk(KERN_INFO "TriDo hehe");
+	};
+
+	return len;
+}
+
+static long my_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
+{
+	switch (cmd) {
+	case SEND_DATA_CMD:
+		memset(config_data, 0, IOCTL_DATA_LEN);
+		copy_from_user(config_data, (char*)arg, IOCTL_DATA_LEN);
+		printk(KERN_INFO "TriDo %s, %d, ioctl message = %s\n", __func__, __LINE__, config_data);
+		break;
+
+	default:
+		return -ENOTTY;
+	}
+
+	return 0;
+}
 
 static struct file_operations fops = {
-    .open = dev_open,
-    .release = dev_close,
-    .read = dev_read,
-    .write = dev_write,
-    .unlocked_ioctl = dev_ioctl,
+	.owner = THIS_MODULE,
+	.open = my_open,
+	.release = my_close,
+	.read = my_read,
+	.write = my_write,
+	.unlocked_ioctl = my_ioctl,
 };
 
-
-
-static int dev_open(struct inode *inodep, struct file *filep)
+static int __init func_init(void)
 {
-    pr_info("Open is called\n");
-    return 0;
+	memset(data, 0, sizeof(data));
+
+	alloc_chrdev_region(&dev_num, 0, DEVICE, DEVICE_NAME);
+	my_class = class_create(THIS_MODULE, DEVICE_NAME);
+	cdev_init(&my_cdev, &fops);
+	my_cdev.owner = THIS_MODULE;
+	cdev_add(&my_cdev, dev_num, 1);
+	device_create(my_class, NULL, dev_num, NULL, DEVICE_NAME);
+	
+	base_addr = ioremap(GPIO_ADDR_BASE, ADDR_SIZE);
+
+	return 0;
 }
 
-static int dev_close(struct inode *inodep, struct file *filep)
+static void __exit func_exit(void)
 {
-    pr_info("Close is called\n");
-    return 0;
+	cdev_del(&my_cdev);
+	device_destroy(my_class, dev_num);
+	class_destroy(my_class);
+	unregister_chrdev(dev_num, DEVICE_NAME);
 }
 
-static ssize_t dev_read(struct file*filep, char __user *buf, size_t len, loff_t *offset)
-{
-    printk("Read\n");
-    return len;
-}
+module_init(func_init);
+module_exit(func_exit);
 
-char data[100];
-static ssize_t dev_write(struct file*filep, const char __user *buf, size_t len, loff_t *offset)
-{
-    memset(data, 0, 100);
-    if(copy_from_user(data, buf, len) != 0)
-    {
-	    printk(KERN_ERR "Failed to copy data from user");
-    	    return -EFAULT;
-    }
-    printk("Write = %s\n", data);
-    return len;
-}
-
-static long dev_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
-{
-    switch(cmd)
-    {
-        case SEND_DATA_CMD:
-            memset(config_data, 0, IOCTL_DATA_LEN);
-            copy_from_user(config_data, (char*)arg, IOCTL_DATA_LEN);
-            printk(KERN_INFO "TriDo %s, %d, ioctl message: %s", __func__, __LINE__, config_data);
-            break;
-        default:
-            return -ENOTTY;
-    }
-    return 0;
-}
-
-static int __init exam_init(void)
-{
-    int ret;
-    // Xin cap phat boi so major, minor bat dau tu` 0 va` 1 so minor
-    ret = alloc_chrdev_region(&dev, 0, 1, "example");
-    if(ret)
-    {
-        printk("Can not registor major no\n");
-        return ret;
-    }
-    pr_info("Register successfully major now is: %d\n", MAJOR(dev));
-    // Allocate a cdev structure (cdev: Character device) - Khoi tao vung nho chua character device, tra ve con tro my_cdev
-    cdev_init(&my_cdev, &fops);
-    my_cdev.owner = THIS_MODULE; 
-    my_cdev.dev = dev;
-    // Xin kernel cho dang ky device nay` vao` he thong
-    ret = cdev_add(&my_cdev, dev, 1);
-
-    if(ret < 0)
-    {
-        pr_info("cdev_add error\n");
-        return ret;
-    }
-
-    class_name = class_create("hello");
-    if(IS_ERR(class_name))
-    {
-        pr_info("Create class failed\n");
-        return PTR_ERR(class_name);
-    }
-    pr_info("Create successfully class\n");
-
-    device_name = device_create(class_name, NULL, dev, NULL, "ex_hello");
-    if(IS_ERR(device_name))
-    {
-        pr_info("Create device failed\n");
-        return PTR_ERR(device_name);
-    }
-    pr_info("Create device success\n");
-
-    return 0;     
-}
-
-static void __exit exam_exit(void)
-{
-    pr_info("Goodbye\n");
-    cdev_del(&my_cdev);
-    device_destroy(class_name, dev);
-    class_destroy(class_name);
-    // Unallocate device number
-    unregister_chrdev_region(dev, 1);
-}
-
-module_init(exam_init);
-module_exit(exam_exit);
-
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR(AUTHOR);
+MODULE_DESCRIPTION(DESC);
+MODULE_VERSION("0.01");

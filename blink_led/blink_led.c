@@ -17,7 +17,7 @@
 #define AUTHOR "Minh Tri Do"
 
 #define GPIO_ADDR_BASE 		    0x209C000
-#define GPIO_SIZE 		        0x001801C
+#define GPIO_SIZE 		    0x001801C
 #define GPIO_DR_OFFSET 		    0x00
 #define GPIO_GDIR_OFFSET	    0x04
 #define GPIO_PSR_OFFSET		    0x08
